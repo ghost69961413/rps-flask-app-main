@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rock–Paper–Scissors Multiplayer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #92FFC0 0%, #002661 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            display: flex;
+            background: #fff;
+            border-radius: 1.3rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+            overflow: hidden;
+            min-width: 900px;
+            min-height: 480px;
+        }
+        .side {
+            width: 250px;
+            background: #f2f5fa;
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .side.right {
+            border-left: 1px solid #e0e3ea;
+            background: #f8faff;
+        }
+        .center {
+            width: 400px;
+            padding: 2.2rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+        }
+        h1 {
+            color: #0b7dda;
+            margin-bottom: 2rem;
+            align-self: center;
+        }
+        .btn-group {
+            margin-top: 1.2rem;
+            margin-bottom: 2rem;
+        }
+        button {
+            width: 110px;
+            margin: 0 8px 10px 8px;
+            padding: 13px 0;
+            font-size: 1.05rem;
+            border: none;
+            border-radius: 0.5rem;
+            background: #2196F3;
+            color: white;
+            cursor: pointer;
+            transition: background 0.15s;
+            box-shadow: 0 2px 8px rgba(33,150,243,0.15);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        button:hover:enabled {
+            background: #0288d1;
+        }
+        #reset {
+            background: #e91e63;
+            margin-top: 1rem;
+            width: 100px;
+        }
+        #reset:hover:enabled {
+            background: #c2185b;
+        }
+        .result {
+            margin-top: 2.2rem;
+            font-size: 1.2rem;
+            font-weight: 500;
+            min-height: 60px;
+            transition: color 0.15s;
+            align-self: center;
+        }
+        .win { color: #388e3c; }
+        .lose { color: #d32f2f; }
+        .tie { color: #1976d2; }
+        .visible { opacity: 1; transition: opacity 0.13s; }
+        .hidden { opacity: 0; transition: opacity 0.13s; }
+        #room-box, #mode-box { margin-bottom: 1.2rem; }
+        #invite-link span, #invite-link b { font-size: 1rem; }
+        .history-title {
+            margin-bottom: 1.1rem;
+            color: #448aff;
+            font-weight: bold;
+            font-size: 1.06rem;
+            letter-spacing: 1px;
+        }
+        #history {
+            width: 100%;
+            max-height: 340px;
+            overflow-y: auto;
+            min-height: 120px;
+            background: #f3f6fd;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 4px rgba(68,138,255,0.07);
+            padding-right: 10px;
+        }
+        .history-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e3e6ef;
+            font-size: 0.97rem;
+        }
+        .history-entry:last-child { border-bottom: none; }
+        @media (max-width: 1000px) {
+            .container {
+                flex-direction: column;
+                min-width: unset;
+                min-height: unset;
+                box-shadow: none;
+            }
+            .side, .center { width: auto; min-width: 200px; }
+            #history { min-height: 100px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Left: Friend Options -->
+    <div class="side left">
+        <div id="mode-box">
+            <label><input type="radio" name="mode" value="bot" checked> Play with Bot</label><br>
+            <label><input type="radio" name="mode" value="friend"> Play with Friend</label>
+        </div>
+        <div id="room-box" style="display:none;">
+            <button id="create-room-btn">Create Room</button>
+            <input type="text" id="room-id-input" placeholder="Room ID to Join" style="width:90%;">
+            <button id="join-room-btn" style="margin-top:10px; width:90%">Join</button>
+        </div>
+        <div id="player-identity" style="margin-top:16px;">
+            <label><input type="radio" name="player" value="1" checked> I am Player 1</label>
+            <br>
+            <label><input type="radio" name="player" value="2"> I am Player 2</label>
+        </div>
+        <div id="invite-info" style="margin-top:18px; margin-bottom:0;"></div>
+    </div>
+    <!-- Center: Game Area -->
+    <div class="center">
+        <h1>Rock–Paper–Scissors</h1>
+        <div class="btn-group">
+            <button onclick="play('rock')">🪨 Rock</button>
+            <button onclick="play('paper')">📄 Paper</button>
+            <button onclick="play('scissors')">✂️ Scissors</button>
+        </div>
+        <button id="reset" onclick="resetGame()">Reset</button>
+        <div class="result hidden" id="result"></div>
+    </div>
+    <!-- Right: History -->
+    <div class="side right">
+        <div class="history-title">Game History</div>
+        <div id="history"></div>
+    </div>
+</div>
+<script>
+function setMoveButtons(enabled) {
+    document.querySelectorAll('.btn-group button').forEach(btn => {
+        btn.disabled = !enabled;
+    });
+}
+document.addEventListener('DOMContentLoaded', () => { setMoveButtons(true); });
+
+let playerNum = 1;
+document.querySelectorAll('input[name="player"]').forEach(radio => {
+    radio.onclick = () => {
+        playerNum = parseInt(radio.value);
+        resetGame();
+    };
+});
+
+// --- Auto-join support for invitations ---
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const inviteRoomId = params.get('room_id');
+    const inviteMode = params.get('mode');
+    if (inviteRoomId && inviteMode === "friend") {
+        document.querySelector('input[name="mode"][value="friend"]').checked = true;
+        mode = "friend";
+        document.getElementById('room-box').style.display = 'block';
+        // Simulate joining the room:
+        fetch('/join_room', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({room_id: inviteRoomId}),
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                room_id = inviteRoomId;
+                document.getElementById('invite-info').innerHTML =
+                  `<div id="invite-link"><span>Joined Room: </span><b>${room_id}</b></div>`;
+                document.querySelector('.btn-group').style.display = 'block';
+                startPollingStatus();
+            } else {
+                alert('Room not found');
+            }
+        });
+    }
+})();
+
+let mode = 'bot';
+let room_id = null;
+let pollInterval = null;
+
+function startPollingStatus() {
+    if (pollInterval) clearInterval(pollInterval);
+    if (mode !== 'friend' || !room_id) return;
+    pollInterval = setInterval(() => {
+        fetch('/status').then(res => res.json()).then(data => {
+            const hist = data.history || [];
+            updateHistory(hist);
+            let players = data.players || [null, null];
+            // Player logic
+            if (playerNum === 1) {
+                if (players[0] === null) {
+                    setMoveButtons(true);
+                } else if (players[0] !== null && players[1] === null) {
+                    setMoveButtons(false);
+                } else {
+                    setMoveButtons(true);
+                }
+            } else if (playerNum === 2) {
+                if (players[0] === null) {
+                    setMoveButtons(false);
+                } else if (players[0] !== null && players[1] === null) {
+                    setMoveButtons(true);
+                } else {
+                    setMoveButtons(true);
+                }
+            }
+            if (data.waiting) {
+                document.getElementById("result").className = "result visible tie";
+                document.getElementById("result").innerHTML = `<strong>${data.msg}</strong>`;
+            } else if (hist.length > 0) {
+                let last = hist[hist.length-1];
+                document.getElementById("result").className = "result visible";
+                document.getElementById("result").innerHTML = `
+                    <strong>You:</strong> <b>${capitalize(last.player1)}</b><br>
+                    <strong>Opponent:</strong> <b>${capitalize(last.player2)}</b><br>
+                    <strong>${last.result}</strong>
+                `;
+            } else {
+                document.getElementById("result").className = "result hidden";
+                document.getElementById("result").innerHTML = "";
+            }
+        });
+    }, 1500);
+}
+function stopPollingStatus() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = null;
+}
+
+document.querySelectorAll('input[name="mode"]').forEach(radio => {
+    radio.onclick = () => {
+        mode = radio.value;
+        document.getElementById('history').innerHTML = '';
+        document.getElementById('result').className = "result hidden";
+        setMoveButtons(true);
+        stopPollingStatus();
+        if (mode === 'friend') {
+            document.getElementById('room-box').style.display = 'block';
+            document.getElementById('invite-info').innerHTML = '';
+        } else {
+            document.getElementById('room-box').style.display = 'none';
+            document.getElementById('invite-info').innerHTML = '';
+            createBotRoom();
+        }
+    };
+});
+
+document.getElementById('create-room-btn').onclick = () => {
+    fetch('/create_room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'friend' }),
+    })
+    .then(res => res.json())
+    .then(data => {
+        room_id = data.room_id;
+        document.getElementById('invite-info').innerHTML =
+            `<div id="invite-link"><span>Share Room ID: </span><b>${room_id}</b> to invite your friend!</div>`;
+        startPollingStatus();
+    });
+};
+
+document.getElementById('join-room-btn').onclick = () => {
+    let id = document.getElementById('room-id-input').value;
+    if (!id) return;
+    fetch('/join_room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({room_id: id}),
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            room_id = id;
+            document.getElementById('invite-info').innerHTML =
+                `<div id="invite-link"><span>Joined Room: </span><b>${room_id}</b></div>`;
+            startPollingStatus();
+        } else {
+            alert('Room not found');
+        }
+    });
+};
+
+function createBotRoom() {
+    fetch('/create_room', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'bot' }),
+    })
+    .then(res => res.json())
+    .then(data => {
+        room_id = data.room_id;
+    });
+}
+createBotRoom();
+
+function play(move) {
+    if (!room_id) {
+        alert('Choose or join a room first.');
+        return;
+    }
+    setMoveButtons(false); // Always disable after click to avoid double moves
+    fetch("/play", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({move: move, player_num: playerNum})
+    })
+    .then(response => response.json())
+    .then(data => {
+        let resultDiv = document.getElementById("result");
+        // BOT MODE: always enable move buttons after result!
+        if (mode === 'bot') {
+            let resClass = '';
+            if (data.result && data.result.includes('win')) resClass = 'win';
+            else if (data.result && data.result.includes('tie')) resClass = 'tie';
+            else resClass = 'lose';
+            resultDiv.className = "result visible " + resClass;
+            resultDiv.innerHTML = `
+                <strong>You:</strong> ${capitalize(data.player || data.player1)}<br>
+                <strong>Opponent:</strong> ${capitalize(data.opponent || data.player2)}<br>
+                <strong>${data.result}</strong>
+            `;
+            updateHistory(data.history);
+            setMoveButtons(true); // force enable after each bot play
+        }
+        // FRIEND MODE: previous behavior
+        else if (data.waiting) {
+            resultDiv.className = "result visible tie";
+            resultDiv.innerHTML = `<strong>${data.msg}</strong>`;
+        } else {
+            let resClass = '';
+            if (data.result && data.result.includes('win')) resClass = 'win';
+            else if (data.result && data.result.includes('tie')) resClass = 'tie';
+            else resClass = 'lose';
+            resultDiv.className = "result visible " + resClass;
+            resultDiv.innerHTML = `
+                <strong>You:</strong> ${capitalize(data.player || data.player1)}<br>
+                <strong>Opponent:</strong> ${capitalize(data.opponent || data.player2)}<br>
+                <strong>${data.result}</strong>
+            `;
+            updateHistory(data.history);
+        }
+    })
+    .catch(() => setMoveButtons(true)); // In case of error, enable buttons
+}
+
+function updateHistory(histArr) {
+    let histDiv = document.getElementById('history');
+    if (!histArr || histArr.length === 0) {
+        histDiv.innerHTML = '';
+        return;
+    }
+    histDiv.innerHTML = histArr.map(item =>
+        `<div class="history-entry">
+            You: <b>${capitalize(item.player1)}</b>, 
+            Opponent: <b>${capitalize(item.player2)}</b>, 
+            Result: <b>${item.result}</b>
+        </div>`).join('');
+}
+
+function resetGame() {
+    fetch('/reset', {method:'POST'})
+    .then(()=> {
+        let resultDiv = document.getElementById("result");
+        resultDiv.className = "result hidden";
+        resultDiv.innerHTML = "";
+        document.getElementById("history").innerHTML = "";
+        setMoveButtons(true);
+    });
+}
+function capitalize(word) {
+    return word ? word.charAt(0).toUpperCase() + word.slice(1) : '';
+}
+</script>
+</body>
+</html>
